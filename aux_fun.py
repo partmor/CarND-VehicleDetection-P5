@@ -45,27 +45,15 @@ def color_hist(img, nbins=32, bins_range=(0, 256), plot=False, ch_names=list('RG
     return ch1, ch2, ch3, bin_centers, hist_features
 
 
-def bin_spatial(img, color_space='RGB', size=(32, 32)):
-    # Convert image to new color space (if specified)
-    if color_space != 'RGB':
-        if color_space == 'HSV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        elif color_space == 'LUV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
-        elif color_space == 'HLS':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-        elif color_space == 'YUV':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
-        elif color_space == 'YCrCb':
-            feature_image = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
-    else: feature_image = np.copy(img)             
+def extract_spatial_features(img_3ch, color_space='RGB', size=(32, 32)):
+    feature_image = np.copy(img_3ch)             
     # Use cv2.resize().ravel() to create the feature vector
     features = cv2.resize(feature_image, size).ravel() 
     # Return the feature vector
     return features
 
 
-def get_hog_features(channel, orientations, pixels_per_cell, cells_per_block, vis=False, feature_vector=True):
+def extract_hog_features(channel, orientations, pixels_per_cell, cells_per_block, vis=False, feature_vector=True):
     return hog(
         channel, 
         orientations=orientations, 
@@ -74,3 +62,8 @@ def get_hog_features(channel, orientations, pixels_per_cell, cells_per_block, vi
         visualise=vis, 
         feature_vector=feature_vector
     )
+
+
+def extract_hist_features(img_3ch, nbins=32, bins_range=(0, 256)):
+    _, _, _, _, features = color_hist(img_3ch, nbins=nbins, bins_range=bins_range)
+    return features

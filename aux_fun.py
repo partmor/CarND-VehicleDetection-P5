@@ -60,6 +60,22 @@ def slide_window_uniform(img, x_start_stop=[None, None], y_start_stop=[None, Non
     return window_list
 
 
+def slide_window_multi_scale(img):
+    window_list = list()
+    img_y, img_x = img.shape[0], img.shape[1]
+    window_list += slide_window_uniform(img, y_start_stop=[300, None], 
+                    xy_window=(int(img_x/4), int(img_x/4)), xy_overlap=(0.7, 0.7))
+    window_list += slide_window_uniform(img, y_start_stop=[300, 600], 
+                    xy_window=(int(img_x/6), int(img_x/6)), xy_overlap=(0.75, 0.8))
+    window_list += slide_window_uniform(img, y_start_stop=[350, 600], 
+                    xy_window=(int(img_x/8), int(img_x/8)), xy_overlap=(0.7, 0.8))
+    window_list += slide_window_uniform(img, y_start_stop=[350, 600], 
+                    xy_window=(int(img_x/15), int(img_x/15)), xy_overlap=(0.6, 0.6))
+    window_list += slide_window_uniform(img, y_start_stop=[350, 500], 
+                    xy_window=(int(img_x/20), int(img_x/20)), xy_overlap=(0.6, 0.7))
+    return window_list
+
+
 def color_hist(img, nbins=32, bins_range=(0, 256), plot=False, ch_names=list('RGB')):
     # Compute the histogram of the RGB channels separately
     ch1 = np.histogram(img[:,:,0], bins=nbins, range=bins_range)
@@ -112,3 +128,38 @@ def extract_hog_features(channel, orientations, pixels_per_cell, cells_per_block
 def extract_hist_features(img_3ch, nbins=32, bins_range=(0, 256)):
     _, _, _, _, features = color_hist(img_3ch, nbins=nbins, bins_range=bins_range)
     return features
+
+
+def add_heat(heatmap, bbox_list):
+    # Iterate through list of bboxes
+    for box in bbox_list:
+        # Add += 1 for all pixels inside each bbox
+        # Assuming each "box" takes the form ((x1, y1), (x2, y2))
+        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+
+    # Return updated heatmap
+    return heatmap
+
+
+def apply_threshold(heatmap, threshold):
+    # Zero out pixels below the threshold
+    heatmap[heatmap <= threshold] = 0
+    # Return thresholded map
+    return heatmap
+
+
+def draw_labeled_bboxes(image, labels):
+    img = np.copy(image)
+    # Iterate through all detected cars
+    for car_number in range(1, labels[1]+1):
+        # Find pixels with each car_number label value
+        nonzero = (labels[0] == car_number).nonzero()
+        # Identify x and y values of those pixels
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        # Define a bounding box based on min/max x and y
+        bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+        # Draw the box on the image
+        cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+    # Return the image
+    return img

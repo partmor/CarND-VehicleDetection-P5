@@ -4,6 +4,11 @@ import matplotlib.pyplot as plt
 from skimage.feature import hog
 
 
+#############
+#  HELPERS  #
+#############
+
+
 def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
     # Make a copy of the image
     draw_img = np.copy(img)
@@ -60,76 +65,6 @@ def slide_window_uniform(img, x_start_stop=[None, None], y_start_stop=[None, Non
     return window_list
 
 
-def slide_window_multi_scale(img):
-    window_list = list()
-    img_y, img_x = img.shape[0], img.shape[1]
-    window_list += slide_window_uniform(img, y_start_stop=[300, None], 
-                    xy_window=(int(img_x/4), int(img_x/4)), xy_overlap=(0.7, 0.7))
-    window_list += slide_window_uniform(img, y_start_stop=[300, 600], 
-                    xy_window=(int(img_x/6), int(img_x/6)), xy_overlap=(0.75, 0.8))
-    window_list += slide_window_uniform(img, y_start_stop=[350, 600], 
-                    xy_window=(int(img_x/8), int(img_x/8)), xy_overlap=(0.7, 0.8))
-    window_list += slide_window_uniform(img, y_start_stop=[350, 600], 
-                    xy_window=(int(img_x/15), int(img_x/15)), xy_overlap=(0.6, 0.6))
-    window_list += slide_window_uniform(img, y_start_stop=[350, 500], 
-                    xy_window=(int(img_x/20), int(img_x/20)), xy_overlap=(0.6, 0.7))
-    return window_list
-
-
-def color_hist(img, nbins=32, bins_range=(0, 256), plot=False, ch_names=list('RGB')):
-    # Compute the histogram of the RGB channels separately
-    ch1 = np.histogram(img[:,:,0], bins=nbins, range=bins_range)
-    ch2 = np.histogram(img[:,:,1], bins=nbins, range=bins_range)
-    ch3 = np.histogram(img[:,:,2], bins=nbins, range=bins_range)
-    # Generating bin centers
-    bin_edges = ch1[1]
-    bin_centers = (bin_edges[1:]  + bin_edges[0:len(bin_edges)-1])/2
-    # Concatenate the histograms into a single feature vector
-    hist_features = np.concatenate((ch1[0], ch2[0], ch3[0]))
-    # Visualize
-    if plot:
-        fig = plt.figure(figsize=(12,3))
-        plt.subplot(131)
-        plt.bar(bin_centers, ch1[0])
-        plt.xlim(bins_range)
-        plt.title('%s Histogram' % ch_names[0])
-        plt.subplot(132)
-        plt.bar(bin_centers, ch2[0])
-        plt.xlim(bins_range)
-        plt.title('%s Histogram' % ch_names[1])
-        plt.subplot(133)
-        plt.bar(bin_centers, ch3[0])
-        plt.xlim(bins_range)
-        plt.title('%s Histogram' % ch_names[2])
-        fig.tight_layout()
-    # Return the individual histograms, bin_centers and feature vector
-    return ch1, ch2, ch3, bin_centers, hist_features
-
-
-def extract_spatial_features(img_3ch, color_space='RGB', size=(32, 32)):
-    feature_image = np.copy(img_3ch)             
-    # Use cv2.resize().ravel() to create the feature vector
-    features = cv2.resize(feature_image, size).ravel() 
-    # Return the feature vector
-    return features
-
-
-def extract_hog_features(channel, orientations, pixels_per_cell, cells_per_block, vis=False, feature_vector=True):
-    return hog(
-        channel, 
-        orientations=orientations, 
-        pixels_per_cell=(pixels_per_cell, pixels_per_cell), 
-        cells_per_block=(cells_per_block, cells_per_block), 
-        visualise=vis, 
-        feature_vector=feature_vector
-    )
-
-
-def extract_hist_features(img_3ch, nbins=32, bins_range=(0, 256)):
-    _, _, _, _, features = color_hist(img_3ch, nbins=nbins, bins_range=bins_range)
-    return features
-
-
 def add_heat(heatmap, bbox_list):
     # Iterate through list of bboxes
     for box in bbox_list:
@@ -163,3 +98,69 @@ def draw_labeled_bboxes(image, labels):
         cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
     # Return the image
     return img
+
+def convert_color(img, conv='RGB2YCrCb'):
+    if conv == 'RGB2YCrCb':
+        return cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
+    if conv == 'BGR2YCrCb':
+        return cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
+    if conv == 'RGB2LUV':
+        return cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
+
+########################
+#  FEATURE EXTRACTION  #
+########################
+
+
+def color_hist(img, nbins=32, bins_range=(0, 256), plot=False, ch_names=list('RGB')):
+    # Compute the histogram of the RGB channels separately
+    ch1 = np.histogram(img[:,:,0], bins=nbins, range=bins_range)
+    ch2 = np.histogram(img[:,:,1], bins=nbins, range=bins_range)
+    ch3 = np.histogram(img[:,:,2], bins=nbins, range=bins_range)
+    # Generating bin centers
+    bin_edges = ch1[1]
+    bin_centers = (bin_edges[1:]  + bin_edges[0:len(bin_edges)-1])/2
+    # Concatenate the histograms into a single feature vector
+    hist_features = np.concatenate((ch1[0], ch2[0], ch3[0]))
+    # Visualize
+    if plot:
+        fig = plt.figure(figsize=(12,3))
+        plt.subplot(131)
+        plt.bar(bin_centers, ch1[0])
+        plt.xlim(bins_range)
+        plt.title('%s Histogram' % ch_names[0])
+        plt.subplot(132)
+        plt.bar(bin_centers, ch2[0])
+        plt.xlim(bins_range)
+        plt.title('%s Histogram' % ch_names[1])
+        plt.subplot(133)
+        plt.bar(bin_centers, ch3[0])
+        plt.xlim(bins_range)
+        plt.title('%s Histogram' % ch_names[2])
+        fig.tight_layout()
+    # Return the individual histograms, bin_centers and feature vector
+    return ch1, ch2, ch3, bin_centers, hist_features
+
+
+def extract_spatial_features(img, size=(32, 32)):
+    feature_image = np.copy(img)             
+    # Use cv2.resize().ravel() to create the feature vector
+    features = cv2.resize(feature_image, size).ravel() 
+    # Return the feature vector
+    return features
+
+
+def extract_hog_features(channel, orientations, pixels_per_cell, cells_per_block, vis=False, feature_vector=True):
+    return hog(
+        channel, 
+        orientations=orientations, 
+        pixels_per_cell=(pixels_per_cell, pixels_per_cell), 
+        cells_per_block=(cells_per_block, cells_per_block), 
+        visualise=vis, 
+        feature_vector=feature_vector
+    )
+
+
+def extract_hist_features(img_3ch, nbins=32, bins_range=(0, 256)):
+    _, _, _, _, features = color_hist(img_3ch, nbins=nbins, bins_range=bins_range)
+    return features

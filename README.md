@@ -51,6 +51,38 @@ And finally the histograms for each of the YCrCb channels:
 
 ![car_hist]
 
-To be consumable by the classifier model, the feature arrays must be flattened and concatenated together. 
+To be consumable by the classifier model, the feature arrays must be flattened and concatenated together into a one-dimensional vector. 
 
 For a single image, the total feature vector extraction is encapsulated in `extract_single_img_features()`. This processed is looped for each image in the database with the help of `extract_features_from_img_file_list()`. Finally `build_dataset()` merges and shuffles all the data into the final training set, and provides the label vector populated with zeros and ones. 
+
+## Model training pipeline
+
+The model used for the classication task in this project is a **Linear Support Vector Machine Classifier**, in particular [`sklearn.svm.LinearSVC`](http://scikit-learn.org/stable/modules/generated/sklearn.svm.LinearSVC.html). This election is supported on the fact it is a rather simple method that is known to perform well in image classification taks, while being faster than higher order kernel SVMs and complex tree based models. It is important for the model to be fast at predicting, since it must be able to process a video stream.
+
+The training set construction involved the joint usage of features that present disparity of magnitudes: gradient values, raw pixel values, and histogram counts. It is therefore necessary to perform a scaling of the features so one type does not dominate over the rest during the training process. 
+
+Feature scaling is performed using [`sklearn.preprocessing.StandardScaler`](http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.StandardScaler.html). A great advantage of using scikit-learn's API, is that preprocessing steps can be enclosed together with the model itself in a *pipeline object*, [`sklearn.pipeline.Pipeline`](http://scikit-learn.org/stable/modules/generated/sklearn.pipeline.Pipeline.html), that exposes the same methods than the classifier, but without having to worry about explicitly calling the preprocessing steps everytime the model is used, improving readability and robustness.
+
+The pipeline object is built with the [`sklearn.pipeline.make_pipeline()`](http://scikit-learn.org/stable/modules/generated/sklearn.pipeline.make_pipeline.html) method:
+
+```python
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import LinearSVC
+
+scaled_clf = make_pipeline(
+    StandardScaler(),
+    LinearSVC()
+)
+```
+
+The effect of the hyperparameters on the performance of the model is assessed using a 3-fold stratified cross validation, to ensure the 50-50 class balance is preserved in each fold.
+
+---
+
+**NOTE**: The **GTI** image database presents multiple images for each real world entity, since the images have been extracted from near-to-consecutive video frames. If this fact is not taken into account, the obtained CV scores will be overly optimistic due to **leakage**: it is possible to find an image of the same entity in both training and validation folds at each step. This could be easily resolved using time series data or entity-labelled data together with a **Group K-Fold method**, `sklearn.model_selection.GroupKFold`.
+
+This extra information is not available. I tried defining clusters based on template matching with `cv2.matchTemplate()`, where images with high resemblance would be grouped together, but was not robust enough. Further approaches were not tried due to lack of time.
+
+---
+

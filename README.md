@@ -10,6 +10,7 @@
 [heat_map]: ./output_images/heat_map.png
 [static_pipeline_examples]: ./output_images/static_pipeline_examples.png
 [video_sample]: ./output_images/video_sample.gif
+[challenge_sample]: ./challenge/challenge_sample.gif
 
 ![video_sample]
 
@@ -159,3 +160,13 @@ This setup performed very well, only finding false positives in very few frames,
 ![video_sample]
 
 The solution video is included in the repo, named `project_video_solution.mp4.` You can also find here a [YouTube link](https://www.youtube.com/watch?v=E_4T9Nx5Lo4) to the video.
+
+# Challenge
+
+The vehicle detection pipeline has been combined with the [lane detection pipeline](https://github.com/partmor/CarND-AdvancedLaneLines-P4) in the notebook `p5_challenge_solution.ipynb`, linked [here](p5_challenge_solution.ipynb).
+
+In this new approach the `VehicleTracker` class has been extended to keep track of the lanes trough the `Line` class and the `lane_detection_pl()` method. The core methods for lane detection can be found in the `p4_aux.py` script, while the camara distortion parameters, and source/destination points definition are saved as *pickles* in the `challenge` folder.
+
+![challenge_sample]
+
+The solution video is located in the latter folder, and named as `challenge_solution.mp4`. A [YouTube link](https://www.youtube.com/watch?v=vclfSxV7XbA) is also provided.

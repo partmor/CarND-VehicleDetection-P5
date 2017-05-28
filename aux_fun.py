@@ -1,8 +1,9 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from skimage import io
 from skimage.feature import hog
-
+from sklearn.utils import shuffle
 
 #############
 #  HELPERS  #
@@ -188,3 +189,177 @@ def extract_hog_features(channel, orientations, pixels_per_cell, cells_per_block
 def extract_hist_features(img_3ch, nbins=32, bins_range=(0, 256)):
     _, _, _, _, features = color_hist(img_3ch, nbins=nbins, bins_range=bins_range)
     return features
+
+
+def extract_single_img_features(img_rgb, 
+                                use_hog, hog_cspace, channels_for_hog,
+                                hog_orientations, hog_pixels_per_cell, hog_cells_per_block,
+                                use_hist, hist_cspace, hist_nbins,
+                                use_spatial, spatial_cspace, spatial_resize
+                               ):
+    
+    img_spatial = img_rgb if spatial_cspace=='RGB' else convert_color(img_rgb, 'RGB2%s' % spatial_cspace)
+    img_hist = img_rgb if hist_cspace=='RGB' else convert_color(img_rgb, 'RGB2%s' % hist_cspace)
+    img_hog = img_rgb if hog_cspace=='RGB' else convert_color(img_rgb, 'RGB2%s' % hog_cspace)
+    
+    spatial_features = extract_spatial_features(img_spatial, size=(spatial_resize,)*2)
+    hist_features = extract_hist_features(img_hist, nbins=hist_nbins)
+    hog_features_list = list()
+    for ch in channels_for_hog:
+        hog_features_list.append(
+            extract_hog_features(img_hog[:,:,ch], hog_orientations, hog_pixels_per_cell, hog_cells_per_block)
+        )
+    hog_features = np.concatenate(hog_features_list)
+    
+    features_list = list()
+    if use_spatial:
+        features_list.append(spatial_features)
+    if use_hist:
+        features_list.append(hist_features)
+    if use_hog:
+        features_list.append(hog_features)
+    
+    return np.concatenate(features_list)
+
+
+def extract_features_from_img_file_list(img_fname_list,
+                                        use_hog, hog_cspace, channels_for_hog,
+                                        hog_orientations, hog_pixels_per_cell, hog_cells_per_block,
+                                        use_hist, hist_cspace, hist_nbins,
+                                        use_spatial, spatial_cspace, spatial_resize
+                                       ):
+    feature_list = list()
+    for img_fname in img_fname_list:
+        img_features = list()
+        img_rgb = io.imread(img_fname)
+        feature_list.append(
+            extract_single_img_features(img_rgb, 
+                                        use_hog, hog_cspace, channels_for_hog,
+                                        hog_orientations, hog_pixels_per_cell, hog_cells_per_block,
+                                        use_hist, hist_cspace, hist_nbins,
+                                        use_spatial, spatial_cspace, spatial_resize
+                                       )
+        )
+    return np.vstack(feature_list)
+
+
+def build_dataset(positive_fname_list, negative_fname_list, 
+                    use_hog, hog_cspace, channels_for_hog,
+                    hog_orientations, hog_pixels_per_cell, hog_cells_per_block,
+                    use_hist, hist_cspace, hist_nbins,
+                    use_spatial, spatial_cspace, spatial_resize                 
+                 ):
+    
+    extract = lambda x: extract_features_from_img_file_list(
+        x, 
+        use_hog, hog_cspace, channels_for_hog,
+        hog_orientations, hog_pixels_per_cell, hog_cells_per_block,
+        use_hist, hist_cspace, hist_nbins,
+        use_spatial, spatial_cspace, spatial_resize   
+    )          
+    
+    X_0 = extract(negative_fname_list)
+    y_0 = np.zeros(X_0.shape[0])
+    X_1 = extract(positive_fname_list)
+    y_1 = np.ones(X_1.shape[0])
+    return shuffle(np.vstack([X_0, X_1]), np.concatenate([y_0, y_1]))
+
+
+########################
+#  PREDICTION PIPELINE #
+########################
+
+
+def find_cars(img, ystart, ystop, scale, cells_per_step_overlap, clf_pl, 
+              orient, pix_per_cell, cell_per_block, 
+              spatial_size, 
+              hist_bins,
+              use_hog=True,
+              hog_cspace='LUV',
+              use_spatial=True,
+              spatial_cspace='RGB',
+              use_hist=True,
+              hist_cspace='RGB',
+              channels_for_hog=[0,1,2],
+              vis=False
+             ):
+    
+    draw_img = np.copy(img)
+    img_tosearch = img[ystart:ystop,:,:]
+    
+    if scale != 1:
+        imshape = img_tosearch.shape
+        img_tosearch = cv2.resize(img_tosearch, (np.int(imshape[1]/scale), np.int(imshape[0]/scale)))
+
+    # Define blocks and steps as above
+    nxblocks = (img_tosearch.shape[1] // pix_per_cell) - cell_per_block + 1
+    nyblocks = (img_tosearch.shape[0] // pix_per_cell) - cell_per_block + 1 
+    nfeat_per_block = orient*cell_per_block**2
+    
+    # 64 was the orginal sampling rate, with 8 cells and 8 pix per cell
+    window = 64
+    nblocks_per_window = (window // pix_per_cell) - cell_per_block + 1
+    cells_per_step = cells_per_step_overlap  # Instead of overlap, define how many cells to step (2 default)
+    nxsteps = (nxblocks - nblocks_per_window) // cells_per_step
+    nysteps = (nyblocks - nblocks_per_window) // cells_per_step
+    
+    # Color space transformation for each feature extraction method
+    ctrans_tosearch_hog = img_tosearch if hog_cspace=='RGB' else convert_color(img_tosearch, 'RGB2%s' % hog_cspace)
+    ctrans_tosearch_spatial = img_tosearch if spatial_cspace=='RGB' else convert_color(img_tosearch, 'RGB2%s' % spatial_cspace)
+    ctrans_tosearch_hist = img_tosearch if hist_cspace=='RGB' else convert_color(img_tosearch, 'RGB2%s' % hist_cspace)
+    
+    # Compute individual channel HOG features for the entire image
+    hog_features_per_channel = list()
+    for i in channels_for_hog:
+        hog_i = extract_hog_features(
+            ctrans_tosearch_hog[:,:,i], 
+            orient, pix_per_cell, cell_per_block, feature_vector=False
+        )
+        hog_features_per_channel.append(hog_i)
+    
+    hot_window_list = list()
+    for xb in range(nxsteps):
+        for yb in range(nysteps):
+            ypos = yb*cells_per_step
+            xpos = xb*cells_per_step
+            
+            # Extract HOG for this patch
+            hog_subsampled_features_list = list()
+            for hog_ch_feats in hog_features_per_channel:
+                hog_ch_feats_subsample = hog_ch_feats[ypos:ypos+nblocks_per_window, xpos:xpos+nblocks_per_window].ravel() 
+                hog_subsampled_features_list.append(hog_ch_feats_subsample)
+            hog_features = np.concatenate(hog_subsampled_features_list)
+
+            xleft = xpos*pix_per_cell
+            ytop = ypos*pix_per_cell
+
+            # Extract the image patch
+            subimg_spatial = cv2.resize(ctrans_tosearch_spatial[ytop:ytop+window, xleft:xleft+window], (64,64))
+            subimg_hist = cv2.resize(ctrans_tosearch_hist[ytop:ytop+window, xleft:xleft+window], (64,64))
+            
+            # Get color features
+            spatial_features = extract_spatial_features(subimg_spatial, size=(spatial_size,)*2)
+            hist_features = extract_hist_features(subimg_hist, nbins=hist_bins)
+
+            # Scale features and make a prediction
+            feature_list = list()
+            if use_spatial:
+                feature_list.append(spatial_features)
+            if use_hist:
+                feature_list.append(hist_features)
+            if use_hog:
+                feature_list.append(hog_features)
+            test_features = np.concatenate(feature_list)[np.newaxis]  
+            test_prediction = clf_pl.predict(test_features)
+            
+            if test_prediction == 1:
+                xbox_left = np.int(xleft*scale)
+                ytop_draw = np.int(ytop*scale)
+                win_draw = np.int(window*scale)
+                bbox = ((xbox_left, ytop_draw+ystart), (xbox_left+win_draw,ytop_draw+win_draw+ystart))
+                hot_window_list.append(bbox)
+                if vis:
+                    cv2.rectangle(draw_img,(xbox_left, ytop_draw+ystart),(xbox_left+win_draw,ytop_draw+win_draw+ystart),(0,0,255),3) 
+    if vis:
+        return hot_window_list, draw_img
+    return hot_window_list

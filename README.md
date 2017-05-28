@@ -18,7 +18,7 @@ It is possible to create a unique feature extraction pipeline that suits both tr
 
 ### Project structure
 
-The project workflow is built in the notebook `p5_solution.ipynb`, linked [here](.p5_solution.ipynb). To improve the readability of the notebook and make it less bulkier, the basic core methods and other helpers have been extracted to the `aux_fun.py` script. These functions are cited as `aux_fun.method_name()`, whereas those that are defined in the actual project notebook are simply cited as `method_name()`.
+The project workflow is built in the notebook `p5_solution.ipynb`, linked [here](p5_solution.ipynb). To improve the readability of the notebook and make it less bulkier, the basic core methods and other helpers have been extracted to the `aux_fun.py` script. These functions are cited as `aux_fun.method_name()`, whereas those that are defined in the actual project notebook are simply cited as `method_name()`.
 
 ## Training set construction
 

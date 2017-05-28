@@ -107,6 +107,30 @@ def convert_color(img, conv='RGB2YCrCb'):
     if conv == 'RGB2LUV':
         return cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
 
+
+def plot_3_channels(img, ch_names=('Ch. 1', 'Ch. 2', 'Ch. 3')):
+    f, (ax1, ax2, ax3) = plt.subplots(1,3, figsize=(12,5))
+    ax1.imshow(
+        img[:,:,0],
+        cmap='gray'
+    )
+    ax1.axis('off')
+    ax1.set_title(ch_names[0])
+    ax2.imshow(
+        img[:,:,1],
+        cmap='gray'
+    )
+    ax2.set_title(ch_names[1])
+    ax2.axis('off')
+    ax3.imshow(
+        img[:,:,2],
+        cmap='gray'
+    )
+    ax3.axis('off')
+    ax3.set_title(ch_names[2])
+
+
+
 ########################
 #  FEATURE EXTRACTION  #
 ########################
